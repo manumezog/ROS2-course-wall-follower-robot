@@ -26,6 +26,33 @@ This package includes two versions of the wall-following algorithm:
   - **Status**: Tested only in **Gazebo simulation**.
   - **Logic**: Uses a simpler "bang-bang" or discrete logic. It does not include proportional actions, making it less smooth but easier to debug during the initial development phases.
 
+## 🛠️ Hardware/Software Stack
+
+To ensure reproducibility, this project was developed and tested in the following environment:
+
+- **Robot/Simulation**: Custom Mars Rover simulation and actual TurtleBot-based platform (via TheConstruct labs).
+- **OS**: Ubuntu 24.04 (WSL2)
+- **Middleware**: ROS2 Humble
+- **Sensors**: LiDAR (LaserScan)
+- **Language**: Python 3.10+
+
+## 🧠 The Logic Flow (The "Why")
+
+The core navigation logic is built on a **P-Controller** designed for stability and precision.
+
+- **Proportional Gain ($K_p = 3$)**: Tuned to minimize distance error from the wall (Setpoint: 0.30m) without inducing oscillations.
+- **Speed Profiling**: I opted for a **cruise speed of $0.1$ m/s** to prioritize sensor accuracy and data stability over raw speed. This ensures that the LiDAR measurements remain reliable even in tight corners or narrow passages.
+
+## 🔄 Obstacle Recovery
+
+One of the key features of this implementation is its robustness in high-complexity environments.
+
+- **Stuck Detection**: Implemented a **timed watchdog** mechanism. If the frontal distance remains below 0.5m (or 0.35m depending on sensor noise) for more than **1.8s**, it triggers a deadlock resolution.
+- **Recovery Maneuver**: The robot automatically executes a **Reverse-Pivot** maneuver:
+  1.  **Phase 1**: Gentle reverse away from the obstruction.
+  2.  **Phase 2**: Controlled pivot to re-orient the heading towards clear space.
+  3.  **Phase 3**: Hand-off back to the P-Controller for normal navigation.
+
 ## Course Overview
 
 ROS2 is the next generation of the Robot Operating System. This introductory course provides the essential foundations for working with ROS2, moving beyond basic "bells and whistles" to focus on core concepts used in professional robotics development.
