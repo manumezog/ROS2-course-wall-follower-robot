@@ -4,7 +4,7 @@ This repository contains the **wall_follower** ROS2 package, developed as the fi
 
 ## Certification Details
 
-- **Course**: [ROS2 Basics in 5 Days (Python)](https://app.theconstruct.ai/courses/71)
+- **Course**: [ROS2 Basics in 5 Days (Python)](https://app.theconstruct.ai/courses/ros2-basics-in-5-days-v2-python-268/)
 - **Institution**: TheConstruct.AI
 - **Status**: Final Project - **Phase 1 (ROS2 Topics) Completed**
 
