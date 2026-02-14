@@ -196,11 +196,39 @@ def laser_callback(scan):
 
 ## 🧠 Technical Deep Dive
 
-### 1. Multithreading (The "Spin of Death" Fix)
+### 1. Multithreading & Callback Groups (Critical Fix)
 
-In early versions, calling the `FindWall` service would block the main thread. This stopped the Lidar callback from updating, causing the robot to act on stale data and spin infinitely.
+One of the most challenging aspects of this project was managing concurrency in ROS2. In the initial single-threaded implementation, long-running processes effectively deadlocked the robot.
 
-- **Solution**: We utilized `MultiThreadedExecutor` and `ReentrantCallbackGroup`. This allows the sensor callbacks (Lidar) to interrupt the service logic, ensuring the robot always perceives the latest state of the world.
+**The Problem: Single-Threaded Blocking**
+In a standard `SingleThreadedExecutor`, callbacks are processed sequentially. If one callback (like a Service or Action) enters a `while` loop or uses `time.sleep()`, it **blocks the entire thread**. No other callbacks can run until it finishes.
+
+1.  **The "Death Spin" (Service Deadlock)**:
+    - **Scenario**: The `FindWall` service runs a `while` loop to rotate the robot until it faces a wall.
+    - **Failure**: The `while` loop hogs the main thread. The `laser_callback` (which updates the Lidar data) sits in the queue waiting for the thread to free up. The service loop checks `self.last_laser`, sees old data, continues rotating, and never yields. The robot spins forever, effectively "blind" to the world.
+
+2.  **Missing Telemetry (Action Server Blocking)**:
+    - **Scenario**: The `OdomRecorder` action server runs a long-running loop to record distance, using `time.sleep(0.5)` to pace itself.
+    - **Failure**: `time.sleep()` is transparent to the OS but blocking to the ROS executor. During the sleep, the `odom_callback` (which updates the robot's X/Y position) cannot run. When the action server wakes up, it reads the _exact same_ invalid/old odometry data. The result is a CSV file full of zeros.
+
+**The Solution: Multi-Threaded Architecture**
+We implemented a **Multi-Threaded Architecture** using `MultiThreadedExecutor` and specific **Callback Groups** to break these deadlocks:
+
+- **`MutuallyExclusiveCallbackGroup`**: Assigned to the Lidar/Odom subscribers. This ensures thread safety (sensor data isn't overwritten mid-read) but allows them to run on a separate thread from the service logic.
+- **`ReentrantCallbackGroup`**: Assigned to the Service and Action servers. This allows the heavy logic circuits (FindWall/OdomRecorder) to be interrupted by incoming sensor callbacks.
+
+```python
+# Code Snippet: Enabling Parallelism
+self.service_group = ReentrantCallbackGroup()      # Can be interrupted
+self.sensor_group = MutuallyExclusiveCallbackGroup() # Protected sensor data
+
+# ... passed to the Executor
+executor = MultiThreadedExecutor()
+executor.add_node(node)
+executor.spin()
+```
+
+This architecture ensures that even while the robot is "thinking" (executing a blocking service loop), it can still "see" (process sensor callbacks) and "feel" (update odometry) in the background.
 
 ### 2. The PD Controller
 
